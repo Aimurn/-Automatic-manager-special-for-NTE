@@ -44,13 +44,13 @@
 
 ## 📥 下载
 
-• [百度网盘](https://pan.baidu.com/s/1jZbjMF0hzBlH3Ivsb1Ntew?pwd=6smx)
-• [GitHub](https://github.com/Aimurn/-Automatic-manager-special-for-NTE/releases) 
+* [百度网盘](https://pan.baidu.com/s/1jZbjMF0hzBlH3Ivsb1Ntew?pwd=6smx)
+* [GitHub](https://github.com/Aimurn/-Automatic-manager-special-for-NTE/releases) 
 
 ---
 
 ## 📖 使用教程
 
-• [Bilibili](https://www.bilibili.com/video/BV17z5v6eEdE)
+* [Bilibili](https://www.bilibili.com/video/BV17z5v6eEdE)
 
 
