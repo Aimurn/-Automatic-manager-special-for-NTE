@@ -4,7 +4,7 @@
 
 # 店长特供
 
-## 🤝 功能说明
+### 🤝 功能说明
 
 * 自动完成店长特供 1-1
 * 适配异环 1.1 版本
@@ -12,11 +12,12 @@
 
 ---
 
-## 👉 使用方法（默认暂停快捷键：F9）
+### 👉 使用方法（默认暂停快捷键：F9）
 
-### 图示
 <img width="976" height="352" alt="1 脚本导入示例" src="https://github.com/user-attachments/assets/fa8e590f-b150-4ee0-a902-b90ec0abdc16" />
 <img width="1199" height="604" alt="2 营业玩法等配置示例" src="https://github.com/user-attachments/assets/1faa57d4-4cb7-4a80-b66b-6e86e4d85e76" />
+
+---
 
 ### 使用条件
 
@@ -32,7 +33,7 @@
 
 ---
 
-## ❗ 注意事项
+### ❗ 注意事项
 
 反馈问题时请按以下格式提供信息，如：
 
@@ -47,14 +48,14 @@
 
 ---
 
-## 📥 下载
+### 📥 下载
 
 * [百度网盘](https://pan.baidu.com/s/1jZbjMF0hzBlH3Ivsb1Ntew?pwd=6smx)
 * [GitHub Releases](https://github.com/Aimurn/Automatic-manager-special-for-NTE/releases) 
 
 ---
 
-## 📖 使用教程
+### 📖 使用教程
 
 * [Bilibili](https://www.bilibili.com/video/BV17z5v6eEdE)
 
