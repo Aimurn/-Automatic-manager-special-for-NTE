@@ -14,6 +14,10 @@
 
 ## 👉 使用方法（默认暂停快捷键：F9）
 
+### 图示
+<img width="976" height="352" alt="1 脚本导入示例" src="https://github.com/user-attachments/assets/fa8e590f-b150-4ee0-a902-b90ec0abdc16" />
+<img width="1199" height="604" alt="2 营业玩法等配置示例" src="https://github.com/user-attachments/assets/1faa57d4-4cb7-4a80-b66b-6e86e4d85e76" />
+
 ### 使用条件
 
 * 需配合 [ok-nte](https://github.com/BnanZ0/ok-nte) 使用
