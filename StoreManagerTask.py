@@ -18,12 +18,11 @@ def _inst_gap():
 INST = "<br>".join(
     [
         _inst_line("🤝功能说明：", bold = True),
-        _inst_line("• 实现自动完成店长特供 1-1（适配异环1.1版本、任意角色队伍通用）"),
+        _inst_line("• 实现自动完成店长特供 1-1（任意角色通用（暂不含『安魂曲+达芙蒂尔』））"),
         _inst_gap(),
         _inst_line("⭕优化及调整：", bold = True),
-        _inst_line("• 新增自定义循环次数"),
-        _inst_line("• 优化运行时的信息面板输出效果"),
-        _inst_line("• 优化营业玩法的配置切换体验，现在支持任务设置处切换玩法啦！！！", "#FF5555", bold = True),
+        _inst_line("• 新增核对关卡机制，当进入错误关卡后加入应对处理"),
+        _inst_line("• 初始化日志信息面板，增加可读性；同时新增营业成功次数统计"),
         _inst_gap(),
         _inst_line("👉使用方法：（暂停默认快捷键 “F9”）", bold = True),
         _inst_line("• 有无挂机流均可，但仍然推荐使用挂机流"),
@@ -47,6 +46,15 @@ class StoreManagerTask(BaseTask):
     CONF_ROUNDS = "循环次数"
     CONF_REVENUE_MODE = "营业玩法"
 
+    INFO_STAGE = "当前阶段"
+    INFO_ENERGY = "都市活力"
+    INFO_MODE = "营业玩法"
+    INFO_TIME = "剩余和目标营业时间"
+    INFO_STAR = "黄星数量"
+    INFO_ROUND = "轮次"
+    INFO_SUCCESS = "营业成功次数"
+    INFO_ERROR = "错误"
+
     REVENUE_MAX_TIME = 70 # 允许营业的最大时间
 
     POS_LEVEL_SELECT = (0.1458, 0.3843) # 1-1 关卡
@@ -67,6 +75,7 @@ class StoreManagerTask(BaseTask):
 
     TIME_BOX = {'x': 0.4802, 'y': 0.0556, 'to_x': 0.5458, 'to_y': 0.1019} # 当前剩余营业时间区域
     LEVEL_BOX = {'x': 0.0068, 'y': 0.1259, 'to_x': 0.1719, 'to_y': 0.9519} # 关卡区域
+    CHECK_LEVEL_BOX = {'x': 0.7919, 'y': 0.0426, 'to_x': 0.9792, 'to_y': 0.0778} # 营业时核对关卡区域
     ENERGY_BOX = {'x': 0.8125, 'y': 0.0296, 'to_x': 0.9000, 'to_y': 0.0648} # 都市活力区域
     STAR_BOXES = [ # 营业时三星检测区域
         {'x': 0.9484, 'y': 0.1657, 'to_x': 0.9557, 'to_y': 0.1769},
@@ -82,8 +91,8 @@ class StoreManagerTask(BaseTask):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.name = "店长特供 - ver3.3.0"
-        self.description = "自动完成店长特供 1-1（适配异环1.1）"
+        self.name = "店长特供 - ver3.3.2"
+        self.description = "自动完成店长特供 1-1"
         self.instructions = INST
         self.capture_config = {
             'windows': {
@@ -104,7 +113,7 @@ class StoreManagerTask(BaseTask):
         })
 
         self.config_description.update({
-            self.CONF_ROUNDS: "默认0为无限循环",
+            self.CONF_ROUNDS: "默认0为无限循环，直至都市活力耗尽",
         })
 
         self.config_type.update({
@@ -112,7 +121,7 @@ class StoreManagerTask(BaseTask):
                 "type": "drop_down",
                 "options": [
                     "玩法1：挂机流（需白藏）",
-                    "玩法2：任意角色队伍通用",
+                    "玩法2：任意角色通用",
                 ]
             }
         })
@@ -121,6 +130,24 @@ class StoreManagerTask(BaseTask):
     # ---------------------------
     # 工具函数
     # ---------------------------
+    # ===========================
+    # • 输出工具
+    # 日志信息
+    def set_info(self, key, value):
+        self.info_set(key, value)
+
+    def init_info_panel(self):
+        self.info_set(self.INFO_STAGE, " ")
+        self.info_set(self.INFO_ENERGY, " ")
+        self.info_set(self.INFO_MODE, " ")
+        self.info_set(self.INFO_TIME, " ")
+        self.info_set(self.INFO_STAR, "0")
+        self.info_set(self.INFO_ROUND, " ")
+        self.info_set(self.INFO_SUCCESS, "0")
+        self.info_set(self.INFO_ERROR, " ")
+
+    # ===========================
+
     # ===========================
     # • 窗口工具
     # 获取游戏窗口句柄
@@ -154,13 +181,7 @@ class StoreManagerTask(BaseTask):
     # ---------------------------
     def get_round_count(self):
         try:
-            return int(
-                self.config.get(
-                    self.CONF_ROUNDS,
-                    0
-                )
-            )
-        
+            return int(self.config.get(self.CONF_ROUNDS, 0))
         except:
             return 0
 
@@ -171,29 +192,6 @@ class StoreManagerTask(BaseTask):
             self.CONF_REVENUE_MODE,
             "玩法1：挂机流（需白藏）"
         )
-
-    # ===========================
-
-    # ===========================
-    # • 输出工具
-    # 日志信息
-    def set_stage(self, text):
-        self.info_set("当前阶段", text)
-
-    def set_energy(self, text):
-        self.info_set("都市活力", text)
-
-    def set_mode(self, text):
-        self.info_set("营业玩法", text)
-
-    def set_time_status(self, text):
-        self.info_set("剩余和目标营业时间", text)
-
-    def set_star(self, text):
-        self.info_set("黄星数量", text)
-
-    def set_round(self, text):
-        self.info_set("轮次", text)
 
     # ===========================
 
@@ -223,7 +221,7 @@ class StoreManagerTask(BaseTask):
         max_try = 6 # 最大次数
     ):
         for attempt in range(max_try):
-           self.set_stage(f"第{attempt + 1}次尝试滚动查询关卡")
+           self.set_info(self.INFO_STAGE, f"第{attempt + 1}次尝试滚动查询关卡")
            # ========= 1. 执行滚轮 =========
            self.wheel_rel(wheel_pos, wheel_delta = 8400) # wheel_delta滚动格数，120为一格
            # 等待UI刷新
@@ -233,35 +231,32 @@ class StoreManagerTask(BaseTask):
            # ========= 2. OCR检测 =========
            for retry in range(2): # 滚轮后OCR检测最多两次
                time.sleep(0.10)
-               matched, texts = self.find_stage() # 查找目标关卡
-
-               # Debug用：查看OCR原始内容
-               #self.log_info(f"OCR内容: {' | '.join(texts)}")
+               matched = self.find_level() # 查找目标关卡
                
                if matched:
-                   self.set_stage(f"已识别到目标关卡：{target}")
+                   self.set_info(self.INFO_STAGE, f"已识别到目标关卡：{target}")
                    found = True
                    self.sleep(0.2)
                    break
                
            # ========= 3. 找到目标 =========
            if found:
-               self.set_stage("位置滚动校正")
+               self.set_info(self.INFO_STAGE, "位置滚动校正")
                # 再滚一次
-               self.wheel_rel(wheel_pos, wheel_delta = 120) # 滚动最小一格，不建议改大
+               self.wheel_rel(wheel_pos, wheel_delta = 8400)
                time.sleep(0.2)
-               matched, texts = self.find_stage()
+               matched = self.find_level()
 
                if matched:
-                   self.set_stage("已定位目标关卡")
+                   self.set_info(self.INFO_STAGE, "已定位目标关卡")
                    return True
 
-               self.set_stage("校正后确认失败，继续查询")
+               self.set_info(self.INFO_STAGE, "校正后确认失败，继续查询")
 
            # ========= 4. 未找到 =========
-           self.set_stage("未查询到目标关卡，继续滚动……")
+           self.set_info(self.INFO_STAGE, "未查询到目标关卡，继续滚动……")
 
-        self.log_error(f"查询关卡失败: {target}")
+        self.set_info(self.INFO_ERROR, f"查询关卡失败: {target}")
 
         return False
 
@@ -289,11 +284,11 @@ class StoreManagerTask(BaseTask):
             )
             self.sleep(0.03)
 
-    # 营业玩法（适配任意角色队伍通用）
+    # 营业玩法（适配任意角色通用）
     # 营业玩法一：挂机流（需白藏）
     # ---------------------------
     def revenue_method_1(self):
-        self.set_mode("挂机流玩法（有白藏）")
+        self.set_info(self.INFO_MODE, "玩法1：挂机流（需白藏）")
         revenue_deadline = time.time() + self.REVENUE_MAX_TIME # 设置营业的最大时间（70秒）
         last_check = 0
 
@@ -307,26 +302,26 @@ class StoreManagerTask(BaseTask):
                 last_check = now
                 # 检测营业时三星
                 if self.check_stars(self.STAR_BOXES, '当前'):
-                    self.set_stage("达成通关")
+                    self.set_info(self.INFO_STAGE, "达成通关")
                     self.sleep(1.0)
                     break
 
             self.sleep(0.05)
         else:
-            self.log_error("营业超时")
+            self.set_info(self.INFO_ERROR, "营业超时")
             return
 
         return
 
-    # 营业玩法二：无白藏（任意角色队伍通用）
+    # 营业玩法二：无白藏（任意角色通用）
     # ---------------------------
     def revenue_method_2(self):
-        self.set_mode("任意角色队伍通用")
+        self.set_info(self.INFO_MODE, "玩法2：任意角色通用")
         self.sleep(3.0)
 
         # 等待营业开始
         if not self.wait_time(1, 58):
-            self.log_error("目标时间检测异常")
+            self.set_info(self.INFO_ERROR, "目标时间检测异常")
             return
 
         # 第一阶段
@@ -339,7 +334,7 @@ class StoreManagerTask(BaseTask):
 
         # 第一位顾客
         if not self.wait_time(1, 52):
-            self.log_error("目标时间检测异常")
+            self.set_info(self.INFO_ERROR, "目标时间检测异常")
             return
 
         self.random_click(self.POS_BREAD_ING_3, 2) # 交付面包2商品
@@ -351,7 +346,7 @@ class StoreManagerTask(BaseTask):
     
         # 第二位顾客
         if not self.wait_time(1, 48):
-            self.log_error("目标时间检测异常")
+            self.set_info(self.INFO_ERROR, "目标时间检测异常")
             return
 
         self.random_click(self.POS_DES_ING_3, 2) # 交付甜品商品
@@ -361,7 +356,7 @@ class StoreManagerTask(BaseTask):
     
         # 第三位顾客
         if not self.wait_time(1, 41):
-            self.log_error("目标时间检测异常")
+            self.set_info(self.INFO_ERROR, "目标时间检测异常")
             return
 
         self.random_click(self.POS_BREAD_ING_2, 2) # 交付面包1商品
@@ -369,11 +364,11 @@ class StoreManagerTask(BaseTask):
         
         # 检测三星
         if self.check_stars(self.STAR_BOXES, '当前'):
-            self.set_stage("达成通关")
+            self.set_info(self.INFO_STAGE, "达成通关")
             self.sleep(1.0)
             return
     
-        self.log_error("未检测到三星")
+        self.set_info(self.INFO_ERROR, "未检测到三星")
         return
     
     # ===========================
@@ -382,17 +377,16 @@ class StoreManagerTask(BaseTask):
     # • OCR工具
     # OCR文本标准化
     # ---------------------------
-    def normalize_text(self, texts):
-       return ''.join(
-           text.replace(' ', '')
-               .replace('—', '-')
-               .replace('=', '-')
-               .replace('I', '1')
-               .replace('l', '1')
-               .replace('|', '1')
-
-           for text in texts
-       )
+    def normalize_text(self, text):
+        clean = (
+            text.replace(' ', '')
+                .replace('—', '-')
+                .replace('=', '-')
+                .replace('I', '1')
+                .replace('l', '1')
+                .replace('|', '1')
+        )
+        return clean
 
     # 等待指定时间出现
     # ---------------------------
@@ -404,7 +398,7 @@ class StoreManagerTask(BaseTask):
             ocr_result = self.ocr(**self.TIME_BOX)
 
             if not ocr_result:
-                self.log_error("无时间结果")
+                self.set_info(self.INFO_ERROR, "无时间结果")
                 self.sleep(1.0)
                 continue
 
@@ -416,43 +410,36 @@ class StoreManagerTask(BaseTask):
                 cur_min = int(match.group(1))
                 cur_sec = int(match.group(2))
                 cur_total = cur_min * 60 + cur_sec
-                self.set_time_status(
+                self.set_info(
+                    self.INFO_TIME, 
                     f"剩余时间：{cur_min}分{cur_sec}秒；"
                     f"目标时间：{minute}分{second}秒 ±{tolerance}秒"
                 )
 
                 if abs(cur_total - target_total) <= tolerance: # 匹配目标时间
                     return True
-                
             else:
-                self.log_error("剩余营业时间检测异常")
+                self.set_info(self.INFO_ERROR, "剩余营业时间检测异常")
 
-        self.log_error("时间识别超时")
+        self.set_info(self.INFO_ERROR, "时间识别超时")
         self.sleep(1.0)
         return False
 
     # OCR检测目标关卡
     # ---------------------------
-    def find_stage(self):
+    def find_level(self):
         self.sleep(0.5) # 让OCR内容刷新
         ocr_result = self.ocr(**self.LEVEL_BOX)
         texts = [b.name for b in ocr_result] if ocr_result else []
 
         if texts:
             # Debug日志：查看OCR的原始关卡信息
-            #self.log_info(f"OCR关卡内容：{' | '.join(texts)}")
+            #self.log_info(f"OCR原始内容：{' | '.join(texts)}")
             #self.sleep(3.0)
 
             # 逐行判断        
             for text in texts:
-                clean = (
-                    text.replace(' ', '')
-                        .replace('—', '-')
-                        .replace('=', '-')
-                        .replace('I', '1')
-                        .replace('l', '1')
-                        .replace('|', '1')
-                )
+                clean = self.normalize_text(text)
 
                 # Debug日志：查看每行OCR的关卡信息
                 #self.log_info(f"OCR标准化行内容：{clean}")
@@ -460,28 +447,52 @@ class StoreManagerTask(BaseTask):
 
                 # 目标关卡匹配
                 if ("1-1" in clean and "新品练习" in clean):
-                    self.set_stage("检测到目标关卡")
+                    self.set_info(self.INFO_STAGE, "检测到目标关卡")
                     time.sleep(0.5)
                     return True, texts
-                
         return False, texts
+    
+    # 核对目标关卡
+    # ---------------------------
+    def check_level(self):
+        ocr_result = self.ocr(**self.CHECK_LEVEL_BOX)
+
+        if not ocr_result:
+            self.set_info(self.INFO_ERROR, "营业时核对目标关卡异常，暂不处理")
+            return True
+        
+        text = ocr_result[0].name
+        clean = self.normalize_text(text)
+
+        if ("1-1" in clean and "新品练习" in clean):
+            self.set_info(self.INFO_STAGE, f"进入关卡：{clean}")
+            self.sleep(0.5)
+            return True
+        else:
+            self.set_info(self.INFO_STAGE, f"错误进入关卡：{clean}，准备退出")
+            self.sleep(4.0)
+            self.random_click(self.POS_EXIT, 1) # 点击退出营业
+            self.sleep(1.5)
+            self.random_click(self.POS_EXIT_RESTART, 1) # 结算时点击退出
+            self.sleep(1.5)
+            return False
 
     # 检测当前都市活力剩余值
     # ---------------------------
     def check_energy(self):
         energy = self.ocr(**self.ENERGY_BOX)
-        self.set_stage("检测都市活力剩余值")
+        self.set_info(self.INFO_STAGE, "检测都市活力剩余值")
 
         if not energy:
-            self.log_error("未识别到都市活力")
+            self.set_info(self.INFO_ERROR, "未识别到都市活力")
             return True
 
         for box in energy:
             text = box.name
-            self.set_energy(text)
+            self.set_info(self.INFO_ENERGY, text)
 
             if text.startswith('0/'):
-                self.set_stage("都市活力耗尽")
+                self.set_info(self.INFO_STAGE, "都市活力耗尽")
                 return True
             
         return False
@@ -504,7 +515,7 @@ class StoreManagerTask(BaseTask):
             if percent > 0.1:
                 num += 1
 
-        self.set_star(f"{stage_name}: {num}/3")
+        self.set_info(self.INFO_STAR, f"{stage_name}: {num}/3")
         return num >= 3
 
     # ===========================
@@ -514,7 +525,7 @@ class StoreManagerTask(BaseTask):
     # 异常处理
     # ---------------------------
     def handle_exception(self, e):
-        self.log_error(f"店长特供执行异常: {e}")
+        self.set_info(self.INFO_ERROR, f"店长特供执行异常: {e}")
         self.sleep(2.0)
 
     # ===========================
@@ -525,10 +536,10 @@ class StoreManagerTask(BaseTask):
     # ========================================
     def store_manager(self):
         # 步骤1：开始店长特供（按 F 进入店长特供）
-        self.set_stage("开始店长特供")
+        self.set_info(self.INFO_STAGE, "开始店长特供")
         # 等待识别“店长特供”
         if not self.wait_ocr(match = '店长特供', time_out = 10):
-            self.log_error("未检测到店长特供")
+            self.set_info(self.INFO_ERROR, "未检测到店长特供")
             return
 
         self.sleep(0.5)
@@ -540,11 +551,11 @@ class StoreManagerTask(BaseTask):
 
             if self.ocr(match = '开始营业'):
                 entered = True
-                self.set_stage("已进入店长特供")
+                self.set_info(self.INFO_STAGE, "已进入店长特供")
                 break
 
         if not entered:
-            self.log_error("进入店长特供超时")
+            self.set_info(self.INFO_ERROR, "进入店长特供超时")
             return
 
         # 步骤2：检测都市活力是否耗尽
@@ -565,32 +576,35 @@ class StoreManagerTask(BaseTask):
 
         # 步骤4：开始营业
         if not self.wait_ocr(match = '开始营业', time_out = 10):
-            self.log_error("未检测到开始营业")
+            self.set_info(self.INFO_ERROR, "未检测到开始营业")
             return
 
         self.random_click(self.POS_START, 1) # 点击开始营业
-        self.set_stage("营业中")
         self.sleep(3.0)
+        if not self.check_level(): # 核对目标关卡
+            return # 未进入目标关卡重新开始
+        self.set_info(self.INFO_STAGE, "营业中")
+        self.sleep(0.5)
         
         # 步骤5：匹配营业玩法
         mode = self.get_revenue_mode()
-        if mode == "玩法1：挂机流（需白藏）":
+        if "玩法1" in mode:
             self.revenue_method_1()
-        elif mode == "玩法2：任意角色队伍通用":
+        elif "玩法2" in mode:
             self.revenue_method_2()
         else:
-            self.log_error(f"未知的营业玩法：{mode}")
+            self.set_info(self.INFO_ERROR, f"未知的营业玩法：{mode}")
             return
             
         # 步骤6：点击退出营业
         self.random_click(self.POS_EXIT, 1) # 点击退出营业
-        self.set_stage("退出营业")
+        self.set_info(self.INFO_STAGE, "退出营业")
         self.sleep(1.5)
             
         # 步骤7：结算确认
-        self.set_stage("结算确认")
+        self.set_info(self.INFO_STAGE, "结算确认")
         if not self.wait_ocr(match = ['挑战成功', '挑战失败'], time_out = 10):
-            self.log_error("未进入结算界面")
+            self.set_info(self.INFO_ERROR, "未进入结算界面")
             return
 
         # 挑战成功 + 达成三星
@@ -599,43 +613,49 @@ class StoreManagerTask(BaseTask):
                 '结算'
             ):
                 self.random_click(self.POS_REWARD, 1) # 结算时领取方斯
-                self.set_stage("挑战成功，领取方斯")
+                self.set_info(self.INFO_STAGE, "挑战成功，领取方斯")
                 self.sleep(1.5)
-
+                return True # 记录成功次数
         # 挑战失败 or 未三星
         else:
-            self.set_stage("挑战失败或未三星，重新开始")
+            self.set_info(self.INFO_STAGE, "挑战失败或未三星，重新开始")
             # 不领方斯点击退出继续下一轮
             self.random_click(self.POS_EXIT_RESTART, 1) # 结算时点击退出
             self.sleep(1.5)
+            return False
 
 
     # ========================================
     # 主函数入口
     # ========================================
     def run(self):
+        self.init_info_panel()
         total_rounds = self.get_round_count()
         endless = total_rounds == 0 # 0表示无限循环
-        current_round = 0
+        current_round = 0 # 轮次
+        success_count = 0 # 营业成功次数
 
         while endless or current_round < total_rounds:
             current_round += 1
             if endless:
-                self.set_round(f"{current_round}/∞")
+                self.set_info(self.INFO_ROUND, f"{current_round}/∞")
             else:
-                self.set_round(f"{current_round}/{total_rounds}")
+                self.set_info(self.INFO_ROUND, f"{current_round}/{total_rounds}")
 
             try:
                 task_result = self.store_manager()
                 if task_result == "energy_empty": # 都市活力耗尽
-                    self.set_stage("都市活力耗尽，任务结束")
+                    self.set_info(self.INFO_STAGE, "都市活力耗尽，任务结束")
                     return
+                elif task_result is True:
+                    success_count += 1
+                    self.set_info(self.INFO_SUCCESS, str(success_count))
 
             except TaskDisabledException:
-                self.set_stage("用户停止，任务结束")
+                self.set_info(self.INFO_STAGE, "用户停止，任务结束")
                 return
 
             except Exception as e:
                 self.handle_exception(e)
         # 达到循环次数后
-        self.set_stage("已达目标轮次，任务结束")
+        self.set_info(self.INFO_STAGE, "已达目标轮次，任务结束")
