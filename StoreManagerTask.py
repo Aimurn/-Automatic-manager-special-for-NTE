@@ -21,18 +21,22 @@ INST = "<br>".join(
         _inst_line("• 实现自动完成店长特供 1-1 [任意角色通用，暂不含『安魂曲+达芙蒂尔』]"),
         _inst_gap(),
         _inst_line("⭕优化及调整：", bold = True),
-        _inst_line("• 营业退出结算统一封装，并优化脚本逻辑结构"),
+        _inst_line("修复：", bold = True),
+        _inst_line("• 增加三星等待检测机制，修复玩法2因界面刷新延迟导致的概率性三星检测失败问题。"),
+        _inst_line("优化：", bold = True),
+        _inst_line("• 优化部分日志更新逻辑，减少后台重复日志输出。"),
+        _inst_line("• 每轮自动重置部分日志状态，信息面板显示更加清晰。"),
         _inst_gap(),
         _inst_line("👉使用方法：（暂停默认快捷键 “F9”）", bold = True),
-        _inst_line("• 有无挂机流均可，但仍然推荐使用挂机流"),
-        _inst_line("• 确保游戏中出现可交互的 “店长特供” 字样"),
-        _inst_line("• 游戏窗口推荐16:9分辨率，但不支持1600*900", "#FF5555", bold = True),
-        _inst_line("• 不支持带鱼屏等超宽比例分辨率", "#FF5555", bold = True),
+        _inst_line("• 有无挂机流均可，但仍然推荐使用挂机流。"),
+        _inst_line("• 确保游戏中出现可交互的 “店长特供” 字样。"),
+        _inst_line("• 游戏窗口推荐16:9分辨率，但不支持1600*900。", "#FF5555", bold = True),
+        _inst_line("• 不支持带鱼屏等超宽比例分辨率。", "#FF5555", bold = True),
         _inst_gap(),
         _inst_line("❗❗❗注意：", bold = True),
         _inst_line("• 反馈时请按以下格式留言详细信息（必要时可包含详细日志）", "#FF5555", bold = True),
-        _inst_line("└─ 版本号：ver3.3.0（具体版本号）"),
-        _inst_line("└─ 游戏分辨率：窗口1920*1080（全屏/窗口+具体分辨率）"),
+        _inst_line("└─ 版本：（请填写……）『格式：verx.x.x，例如：ver3.3.4』"),
+        _inst_line("└─ 游戏分辨率：（请填写……）『格式：全屏/窗口+具体分辨率，例如：窗口+1920*1080』"),
         _inst_line("└─ 反馈内容：（请填写……）"),
         _inst_line("└─ 复现方式：（请填写……）"),
         _inst_gap()
@@ -90,7 +94,7 @@ class StoreManagerTask(BaseTask):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.name = "店长特供 - ver3.3.3"
+        self.name = "店长特供 - ver3.3.4"
         self.description = "自动完成店长特供 1-1"
         self.instructions = INST
         self.capture_config = {
@@ -142,6 +146,14 @@ class StoreManagerTask(BaseTask):
         self.info_set(self.INFO_STAR, "0")
         self.info_set(self.INFO_ROUND, " ")
         self.info_set(self.INFO_SUCCESS, "0")
+        self.info_set(self.INFO_ERROR, " ")
+
+    def init_info_round(self): # 重置缓存
+        self._last_time_info = None
+        self._last_star_info = None
+        self.info_set(self.INFO_ENERGY, " ")
+        self.info_set(self.INFO_TIME, " ")
+        self.info_set(self.INFO_STAR, "0")
         self.info_set(self.INFO_ERROR, " ")
 
     # ===========================
@@ -235,15 +247,15 @@ class StoreManagerTask(BaseTask):
                
            # ========= 3. 找到目标 =========
            if found:
-               self.set_info(self.INFO_STAGE, "位置滚动校正")
+               self.set_info(self.INFO_STAGE, "进行滚动校正")
                self.wheel_rel(wheel_pos, wheel_delta = 8400)
                time.sleep(0.2)
                matched = self.find_level()
                if matched:
-                   self.set_info(self.INFO_STAGE, "已定位目标关卡")
+                   self.set_info(self.INFO_STAGE, "尝试选择目标关卡")
                    return True
                else:
-                   self.set_info(self.INFO_STAGE, "校正后确认失败，继续查询")
+                   self.set_info(self.INFO_STAGE, "校正失败，继续查询")
             
         self.set_info(self.INFO_ERROR, f"查询关卡失败: {target}")
         return False
@@ -339,10 +351,13 @@ class StoreManagerTask(BaseTask):
         self.random_click(self.POS_BREAD_ING_2, 2) # 交付面包1商品
         self.sleep(1.0)
         
-        if self.check_stars(self.STAR_BOXES, '当前'):
-            self.set_info(self.INFO_STAGE, "达成通关")
-            self.sleep(1.0)
-            return
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            if self.check_stars(self.STAR_BOXES, '当前'):
+                self.set_info(self.INFO_STAGE, "达成通关")
+                self.sleep(1.0)
+                return
+            self.sleep(0.5)
     
         self.set_info(self.INFO_ERROR, "未检测到三星")
         return
@@ -401,22 +416,24 @@ class StoreManagerTask(BaseTask):
                 self.sleep(1.0)
                 continue
 
-            self.sleep(0.5) # 确保时间正常检测
             rest_time = ''.join(box.name for box in ocr_result)
             match = re.search(r'(\d+)分(\d+)秒', rest_time) # 提取数字
-
+            
             if match:
                 cur_min = int(match.group(1))
                 cur_sec = int(match.group(2))
                 cur_total = cur_min * 60 + cur_sec
-                self.set_info(
-                    self.INFO_TIME, 
+                time_info = (
                     f"剩余时间：{cur_min}分{cur_sec}秒；"
                     f"目标时间：{minute}分{second}秒 ±{tolerance}秒"
                 )
+                if time_info != self._last_time_info:
+                    self._last_time_info = time_info
+                    self.set_info(self.INFO_TIME, time_info)
 
                 if abs(cur_total - target_total) <= tolerance: # 匹配目标时间
                     return True
+                self.sleep(0.2) # 降低OCR频率
             else:
                 self.set_info(self.INFO_ERROR, "剩余营业时间检测异常")
 
@@ -493,20 +510,20 @@ class StoreManagerTask(BaseTask):
     def check_stars(self, star_boxes, stage_name):
         num = 0
         for star in star_boxes:
-            star_box = self.box_of_screen(
-                **star,
-                name = stage_name
-            )
+            star_box = self.box_of_screen(**star, name = stage_name)
 
             percent = self.calculate_color_percentage(
                 self.YELLOW_STAR_COLOR,
                 star_box
             )
-
             if percent > 0.1:
                 num += 1
+        
+        star_info = f"{stage_name}: {num}/3"
+        if star_info != self._last_star_info:
+            self._last_star_info = star_info
+            self.set_info(self.INFO_STAR, star_info)
 
-        self.set_info(self.INFO_STAR, f"{stage_name}: {num}/3")
         return num >= 3
 
     # ===========================
@@ -540,7 +557,6 @@ class StoreManagerTask(BaseTask):
             self.send_key('f', down_time = 0.10)
             if self.ocr(match = '开始营业'):
                 entered = True
-                self.set_info(self.INFO_STAGE, "已进入店长特供")
                 break
 
         if not entered:
@@ -601,6 +617,7 @@ class StoreManagerTask(BaseTask):
 
         while endless or current_round < total_rounds:
             current_round += 1
+            self.init_info_round() # 重置信息面板缓存
             if endless:
                 self.set_info(self.INFO_ROUND, f"{current_round}/∞")
             else:
