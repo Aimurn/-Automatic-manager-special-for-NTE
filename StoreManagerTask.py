@@ -21,11 +21,8 @@ INST = "<br>".join(
         _inst_line("• 实现自动完成店长特供 1-1 [任意角色通用，暂不含『安魂曲+达芙蒂尔』]"),
         _inst_gap(),
         _inst_line("⭕优化及调整：", bold = True),
-        _inst_line("修复：", bold = True),
-        _inst_line("• 增加三星等待检测机制，修复玩法2因界面刷新延迟导致的概率性三星检测失败问题。"),
-        _inst_line("优化：", bold = True),
-        _inst_line("• 优化部分日志更新逻辑，减少后台重复日志输出。"),
-        _inst_line("• 每轮自动重置部分日志状态，信息面板显示更加清晰。"),
+        _inst_line("新增：", bold = True),
+        _inst_line("• 新增调试模式，可输出调试日志并保存异常截图"),
         _inst_gap(),
         _inst_line("👉使用方法：（暂停默认快捷键 “F9”）", bold = True),
         _inst_line("• 有无挂机流均可，但仍然推荐使用挂机流。"),
@@ -48,6 +45,7 @@ class StoreManagerTask(BaseTask):
 
     CONF_ROUNDS = "循环次数"
     CONF_REVENUE_MODE = "营业玩法"
+    CONF_DEBUG_MODE = "调试模式"
 
     INFO_STAGE = "当前阶段"
     INFO_ENERGY = "都市活力"
@@ -94,7 +92,7 @@ class StoreManagerTask(BaseTask):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.name = "店长特供 - ver3.3.4"
+        self.name = "店长特供 - ver3.3.5"
         self.description = "自动完成店长特供 1-1"
         self.instructions = INST
         self.capture_config = {
@@ -112,10 +110,12 @@ class StoreManagerTask(BaseTask):
         self.default_config.update({
             self.CONF_ROUNDS: 0,
             self.CONF_REVENUE_MODE: "玩法1：挂机流（需白藏）",
+            self.CONF_DEBUG_MODE: False,
         })
 
         self.config_description.update({
             self.CONF_ROUNDS: "默认0为无限循环，直至都市活力耗尽",
+            self.CONF_DEBUG_MODE: "默认关闭，开启后将输出调试日志并保存异常截图"
         })
 
         self.config_type.update({
@@ -125,7 +125,7 @@ class StoreManagerTask(BaseTask):
                     "玩法1：挂机流（需白藏）",
                     "玩法2：任意角色通用",
                 ]
-            }
+            },
         })
 
 
@@ -151,10 +151,22 @@ class StoreManagerTask(BaseTask):
     def init_info_round(self): # 重置缓存
         self._last_time_info = None
         self._last_star_info = None
+        self._last_debug_star = None
         self.info_set(self.INFO_ENERGY, " ")
         self.info_set(self.INFO_TIME, " ")
         self.info_set(self.INFO_STAR, "0")
         self.info_set(self.INFO_ERROR, " ")
+
+    def debug_log(self, msg):
+        if not self.get_debug_mode():
+            return
+        self.log_info(f"[Debug] {msg}")
+
+    # 截图信息
+    def debug_screenshot(self, name):
+        if not self.get_debug_mode():
+            return
+        self.screenshot(name = f"第{self.current_round:03d}轮_{name}")
 
     # ===========================
 
@@ -200,6 +212,10 @@ class StoreManagerTask(BaseTask):
             self.CONF_REVENUE_MODE,
             "玩法1：挂机流（需白藏）"
         )
+    
+    # 调试模式
+    def get_debug_mode(self):
+        return self.config.get(self.CONF_DEBUG_MODE)
 
     # ===========================
 
@@ -258,6 +274,7 @@ class StoreManagerTask(BaseTask):
                    self.set_info(self.INFO_STAGE, "校正失败，继续查询")
             
         self.set_info(self.INFO_ERROR, f"查询关卡失败: {target}")
+        self.debug_screenshot("查询关卡失败")
         return False
 
     # 随机点击（防止固定坐标）
@@ -304,6 +321,7 @@ class StoreManagerTask(BaseTask):
             self.sleep(0.05)
 
         self.set_info(self.INFO_ERROR, "营业超时")
+        self.debug_screenshot("玩法1_营业超时")
 
     # 营业玩法二：无白藏（任意角色通用）
     # ---------------------------
@@ -314,6 +332,7 @@ class StoreManagerTask(BaseTask):
         # 等待营业开始
         if not self.wait_time(1, 58):
             self.set_info(self.INFO_ERROR, "目标时间检测异常")
+            self.debug_screenshot("玩法2_营业未开始或时间检测异常")
             return
 
         self.sleep(0.3)
@@ -326,6 +345,7 @@ class StoreManagerTask(BaseTask):
         # 第一位顾客
         if not self.wait_time(1, 52):
             self.set_info(self.INFO_ERROR, "目标时间检测异常")
+            self.debug_screenshot("玩法2_顾客1时间检测异常")
             return
 
         self.random_click(self.POS_BREAD_ING_3, 2) # 交付面包2商品
@@ -337,6 +357,7 @@ class StoreManagerTask(BaseTask):
         # 第二位顾客
         if not self.wait_time(1, 48):
             self.set_info(self.INFO_ERROR, "目标时间检测异常")
+            self.debug_screenshot("玩法2_顾客2时间检测异常")
             return
 
         self.random_click(self.POS_DES_ING_3, 2) # 交付甜品商品
@@ -346,6 +367,7 @@ class StoreManagerTask(BaseTask):
         # 第三位顾客
         if not self.wait_time(1, 41):
             self.set_info(self.INFO_ERROR, "目标时间检测异常")
+            self.debug_screenshot("玩法2_顾客3时间检测异常")
             return
 
         self.random_click(self.POS_BREAD_ING_2, 2) # 交付面包1商品
@@ -360,6 +382,7 @@ class StoreManagerTask(BaseTask):
             self.sleep(0.5)
     
         self.set_info(self.INFO_ERROR, "未检测到三星")
+        self.debug_screenshot("玩法2_未检测到三星")
         return
     
     # 退出营业
@@ -370,6 +393,7 @@ class StoreManagerTask(BaseTask):
         self.sleep(1.5)
         if not self.wait_ocr(match = ['挑战成功', '挑战失败'], time_out = 10):
             self.set_info(self.INFO_ERROR, "未进入结算界面")
+            self.debug_screenshot("未进入结算页面")
             pass
 
         # 达成三星
@@ -449,15 +473,15 @@ class StoreManagerTask(BaseTask):
         texts = [box.name for box in ocr_result] if ocr_result else []
 
         if texts:
-            # Debug日志：查看OCR的原始关卡信息
-            #self.log_info(f"OCR原始内容：{' | '.join(texts)}")
-            #self.sleep(3.0)
+            #if self.get_debug_mode(): # Debug日志：查看OCR的原始关卡信息
+            #    self.log_debug(f"OCR原始内容：{' | '.join(texts)}")
+            #    self.sleep(3.0)
 
             for text in texts: # 逐行判断
                 clean = self.normalize_text(text)
-                # Debug日志：查看每行OCR的关卡信息
-                #self.log_info(f"OCR标准化行内容：{clean}")
-                #self.sleep(1.0)
+                #if self.get_debug_mode(): # Debug日志：查看每行OCR的关卡信息
+                #    self.log_info(f"OCR标准化行内容：{clean}")
+                #    self.sleep(1.0)
 
                 # 目标关卡匹配
                 if ("1-1" in clean and "新品练习" in clean):
@@ -509,6 +533,7 @@ class StoreManagerTask(BaseTask):
     # ---------------------------
     def check_stars(self, star_boxes, stage_name):
         num = 0
+        debug_percent = []
         for star in star_boxes:
             star_box = self.box_of_screen(**star, name = stage_name)
 
@@ -516,14 +541,26 @@ class StoreManagerTask(BaseTask):
                 self.YELLOW_STAR_COLOR,
                 star_box
             )
+            debug_percent.append(f"{percent:.3f}")
             if percent > 0.1:
                 num += 1
+        
+        debug_star = (stage_name, num)
+        if self.get_debug_mode() and debug_star != self._last_debug_star:
+            self._last_debug_star = debug_star
+            self.log_info(
+                f"[Debug] {stage_name} "
+                f"星1={debug_percent[0]} "
+                f"星2={debug_percent[1]} "
+                f"星3={debug_percent[2]} "
+                f"-> {num}/3"
+            )
         
         star_info = f"{stage_name}: {num}/3"
         if star_info != self._last_star_info:
             self._last_star_info = star_info
             self.set_info(self.INFO_STAR, star_info)
-
+        
         return num >= 3
 
     # ===========================
@@ -579,14 +616,13 @@ class StoreManagerTask(BaseTask):
         self.sleep(0.5)
         # 步骤4：开始营业
         if not self.wait_ocr(match = '开始营业', time_out = 10):
-            self.set_info(self.INFO_ERROR, "未检测到开始营业")
+            self.set_info(self.INFO_ERROR, "未检测到开始营业UI")
             return
-
         self.random_click(self.POS_START, 1) # 点击开始营业
         self.sleep(3.0)
+
         if not self.check_level(): # 核对目标关卡
             return # 未进入目标关卡重新开始
-        
         self.set_info(self.INFO_STAGE, "营业中")
         self.sleep(0.5)
         # 步骤5：匹配营业玩法
@@ -617,6 +653,7 @@ class StoreManagerTask(BaseTask):
 
         while endless or current_round < total_rounds:
             current_round += 1
+            self.current_round = current_round
             self.init_info_round() # 重置信息面板缓存
             if endless:
                 self.set_info(self.INFO_ROUND, f"{current_round}/∞")
